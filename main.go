@@ -63,8 +63,11 @@ func main() {
 		log.Fatalf("không tạo được kết nối DB: %v", err)
 	}
 	defer db.Close()
-	if err := db.Ping(ctx); err != nil {
-		log.Printf("CẢNH BÁO: chưa kết nối được DB: %v", err)
+	if err := waitForDB(ctx, db); err != nil {
+		log.Fatalf("không kết nối được DB: %v", err)
+	}
+	if err := migrate(ctx, db, getenv("SEED", "false") == "true"); err != nil {
+		log.Fatalf("lỗi khởi tạo DB: %v", err)
 	}
 
 	api := &API{db: db}

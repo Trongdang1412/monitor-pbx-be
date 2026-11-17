@@ -1,11 +1,8 @@
 -- Schema cho Monitor PBX (PostgreSQL)
-
-DROP TABLE IF EXISTS active_calls;
-DROP TABLE IF EXISTS cdr;
-DROP TABLE IF EXISTS customers;
+-- Backend tự chạy file này khi khởi động; an toàn khi chạy lại (không xoá dữ liệu).
 
 -- Khách hàng (KH)
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
     id             SERIAL PRIMARY KEY,
     code           VARCHAR(20)  NOT NULL UNIQUE,
     name           VARCHAR(100) NOT NULL,
@@ -13,7 +10,7 @@ CREATE TABLE customers (
 );
 
 -- Call Detail Record
-CREATE TABLE cdr (
+CREATE TABLE IF NOT EXISTS cdr (
     id                   BIGSERIAL PRIMARY KEY,
     customer_id          INT REFERENCES customers(id),
     caller               VARCHAR(30) NOT NULL,          -- Số gọi đi
@@ -28,13 +25,13 @@ CREATE TABLE cdr (
     fee                  NUMERIC(12,2) NOT NULL DEFAULT 0  -- Cước phí (VND)
 );
 
-CREATE INDEX idx_cdr_start_time  ON cdr (start_time);
-CREATE INDEX idx_cdr_customer    ON cdr (customer_id);
-CREATE INDEX idx_cdr_caller      ON cdr (caller);
-CREATE INDEX idx_cdr_callee      ON cdr (callee);
+CREATE INDEX IF NOT EXISTS idx_cdr_start_time  ON cdr (start_time);
+CREATE INDEX IF NOT EXISTS idx_cdr_customer    ON cdr (customer_id);
+CREATE INDEX IF NOT EXISTS idx_cdr_caller      ON cdr (caller);
+CREATE INDEX IF NOT EXISTS idx_cdr_callee      ON cdr (callee);
 
 -- Cuộc gọi đang diễn ra (dùng để tính CCU realtime)
-CREATE TABLE active_calls (
+CREATE TABLE IF NOT EXISTS active_calls (
     id           BIGSERIAL PRIMARY KEY,
     customer_id  INT REFERENCES customers(id),
     caller       VARCHAR(30) NOT NULL,

@@ -1,45 +1,42 @@
 # monitor-pbx-be
 
-Backend Go cho Monitor PBX, kết nối PostgreSQL (driver `pgx`).
+Backend Go (>= 1.25) cho Monitor PBX, dùng PostgreSQL.
 
-## Cấu hình (biến môi trường)
+Khi khởi động, backend tự chờ DB sẵn sàng (tối đa ~60s) và tự tạo bảng nếu chưa có.
+Chỉ cần tạo sẵn một database rỗng, không phải chạy file SQL bằng tay.
+
+## Build & chạy
+
+```bash
+CGO_ENABLED=0 go build -o monitor-pbx-be .
+DB_HOST=localhost DB_USER=postgres DB_PASSWORD=secret DB_NAME=monitor_pbx SEED=true ./monitor-pbx-be
+```
+
+## Biến môi trường
 
 | Biến | Mặc định | Ghi chú |
 |---|---|---|
 | `PORT` | `8080` | Cổng HTTP |
-| `DATABASE_URL` | — | Nếu đặt sẽ bỏ qua các biến `DB_*` |
-| `DB_HOST` / `DB_PORT` | `localhost` / `5432` | |
+| `DB_HOST` / `DB_PORT` | `localhost` / `5432` | Trong container không dùng `localhost` |
 | `DB_NAME` | `monitor_pbx` | |
 | `DB_USER` / `DB_PASSWORD` | `postgres` / rỗng | |
-| `CORS_ORIGIN` | `*` | |
+| `DATABASE_URL` | — | Nếu đặt sẽ thay cho các biến `DB_*` |
+| `SEED` | `false` | `true` = nạp dữ liệu mẫu nếu DB chưa có dữ liệu |
 | `SIMULATE` | `false` | `true` = giả lập cuộc gọi để CCU thay đổi realtime |
+| `CORS_ORIGIN` | `*` | |
 
-## Khởi tạo DB
-
-```bash
-createdb monitor_pbx
-psql -d monitor_pbx -f db/schema.sql
-psql -d monitor_pbx -f db/seed.sql   # dữ liệu mẫu: 5 KH, 5000 CDR / 7 ngày
-```
-
-## Chạy
-
-```bash
-DB_USER=postgres DB_PASSWORD=secret SIMULATE=true go run .
-# hoặc build: go build -o monitor-pbx-be . && ./monitor-pbx-be
-```
+File SQL (`db/schema.sql`, `db/seed.sql`) được nhúng sẵn trong binary.
 
 ## API
 
-| Method | Path | Tham số |
-|---|---|---|
-| GET | `/api/health` | |
-| GET | `/api/customers` | |
-| GET | `/api/hangup-causes` | |
-| GET | `/api/ccu` | CCU hiện tại, theo KH, danh sách cuộc gọi đang diễn ra |
-| GET | `/api/ccu/history` | `from`, `to` (RFC3339), `customer_id` |
-| GET | `/api/summary` | `from`, `to`, `customer_id` → tổng cuộc gọi, ASR, ACD, Fee, theo hangup cause, theo KH |
-| GET | `/api/cdr` | `from`, `to`, `customer_id`, `caller`, `callee`, `hangup_cause`, `hangup_side`, `duration_min/max`, `connecting_min/max`, `fee_min/max`, `page`, `page_size` |
+| Path | Tham số |
+|---|---|
+| `GET /api/health` | |
+| `GET /api/customers` | |
+| `GET /api/hangup-causes` | |
+| `GET /api/ccu` | |
+| `GET /api/ccu/history` | `from`, `to` (RFC3339), `customer_id` |
+| `GET /api/summary` | `from`, `to`, `customer_id` |
+| `GET /api/cdr` | `from`, `to`, `customer_id`, `caller`, `callee`, `hangup_cause`, `hangup_side`, `duration_min/max`, `connecting_min/max`, `fee_min/max`, `page`, `page_size` |
 
-- **ASR** = số cuộc gọi có `duration > 0` / tổng cuộc gọi × 100
-- **ACD** = tổng `duration` / số cuộc gọi thành công (giây)
+ASR = cuộc gọi có `duration > 0` / tổng cuộc gọi × 100. ACD = tổng `duration` / số cuộc gọi thành công.
