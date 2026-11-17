@@ -1,0 +1,4 @@
+.env
+*.log
+monitor-pbx-be
+.DS_Store
