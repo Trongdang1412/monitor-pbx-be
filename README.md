@@ -2,7 +2,9 @@
 
 Backend Go (>= 1.25) cho Monitor PBX, dùng PostgreSQL.
 
-Khi khởi động, backend tự chờ DB sẵn sàng (tối đa ~60s) và tự tạo bảng nếu chưa có.
+HTTP server chạy ngay khi khởi động, kể cả khi DB chưa sẵn sàng. Backend tự thử kết nối DB
+mỗi 5 giây và tự tạo bảng nếu chưa có. Trong lúc chờ, mọi API trả `503` (frontend hiện thông báo
+và tự thử lại). `GET /api/health` trả `200` khi DB sẵn sàng, dùng làm readiness probe.
 Chỉ cần tạo sẵn một database rỗng, không phải chạy file SQL bằng tay.
 
 ## Build & chạy

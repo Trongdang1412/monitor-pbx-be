@@ -63,14 +63,17 @@ func main() {
 		log.Fatalf("không tạo được kết nối DB: %v", err)
 	}
 	defer db.Close()
-	if err := waitForDB(ctx, db); err != nil {
-		log.Fatalf("không kết nối được DB: %v", err)
-	}
-	if err := migrate(ctx, db, getenv("SEED", "false") == "true"); err != nil {
-		log.Fatalf("lỗi khởi tạo DB: %v", err)
-	}
 
 	api := &API{db: db}
+
+	// Kết nối DB + tạo bảng chạy nền, không chặn HTTP server.
+	// Bộ giả lập cuộc gọi (tùy chọn, SIMULATE=true) chỉ chạy sau khi DB sẵn sàng.
+	go initDB(ctx, db, getenv("SEED", "false") == "true", func() {
+		api.ready.Store(true)
+		if getenv("SIMULATE", "false") == "true" {
+			go runSimulator(ctx, db)
+		}
+	})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", api.health)
@@ -81,12 +84,7 @@ func main() {
 	mux.HandleFunc("GET /api/summary", api.summary)
 	mux.HandleFunc("GET /api/cdr", api.cdrList)
 
-	// Bộ giả lập cuộc gọi (tùy chọn) để CCU thay đổi theo thời gian khi chạy lab
-	if getenv("SIMULATE", "false") == "true" {
-		go runSimulator(ctx, db)
-	}
-
 	port := getenv("PORT", "8080")
 	log.Printf("monitor-pbx-be đang chạy tại :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, cors(mux)))
+	log.Fatal(http.ListenAndServe(":"+port, cors(api.requireDB(mux))))
 }

@@ -15,17 +15,22 @@ import (
 //go:embed db/schema.sql db/seed.sql
 var sqlFiles embed.FS
 
-// waitForDB thử kết nối lại trong ~60 giây (DB có thể khởi động chậm hơn backend).
-func waitForDB(ctx context.Context, db *pgxpool.Pool) error {
-	var err error
-	for i := 0; i < 30; i++ {
-		if err = db.Ping(ctx); err == nil {
-			return nil
+// initDB chạy nền: thử kết nối + tạo bảng cho tới khi thành công (mỗi 5 giây).
+// Trong lúc chờ, HTTP server vẫn chạy và trả 503 cho các API cần DB.
+func initDB(ctx context.Context, db *pgxpool.Pool, seed bool, onReady func()) {
+	for {
+		err := db.Ping(ctx)
+		if err == nil {
+			err = migrate(ctx, db, seed)
 		}
-		log.Printf("chờ DB... (%v)", err)
-		time.Sleep(2 * time.Second)
+		if err == nil {
+			log.Println("DB sẵn sàng")
+			onReady()
+			return
+		}
+		log.Printf("DB chưa sẵn sàng, thử lại sau 5s: %v", err)
+		time.Sleep(5 * time.Second)
 	}
-	return err
 }
 
 // migrate tạo bảng nếu chưa có. Nếu seed=true và DB chưa có khách hàng nào thì nạp dữ liệu mẫu.

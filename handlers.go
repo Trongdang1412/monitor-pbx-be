@@ -5,13 +5,26 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type API struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	ready atomic.Bool // true khi DB đã kết nối và tạo bảng xong
+}
+
+// requireDB: khi DB chưa sẵn sàng thì trả 503 thay vì lỗi 500, để frontend hiện thông báo và tự thử lại.
+func (a *API) requireDB(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !a.ready.Load() && r.URL.Path != "/api/health" {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Database chưa sẵn sàng"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ---------- tiện ích đọc tham số ----------
@@ -70,6 +83,10 @@ func addNum(w *where, r *http.Request, param, cond string) {
 // ---------- handlers ----------
 
 func (a *API) health(w http.ResponseWriter, r *http.Request) {
+	if !a.ready.Load() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "starting", "error": "Database chưa sẵn sàng"})
+		return
+	}
 	if err := a.db.Ping(r.Context()); err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "db_down", "error": err.Error()})
 		return
